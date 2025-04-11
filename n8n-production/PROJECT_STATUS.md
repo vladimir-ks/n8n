@@ -2,11 +2,11 @@
 
 ## Quick Start Guide for New Team Members
 
-Welcome to the n8n deployment project for `ai2.vladks.com`. This document will help you quickly understand our current status, what we've accomplished, and what needs to be done next.
+Welcome to the n8n deployment project for `n8n.example.com`. This document will help you quickly understand our current status, what we've accomplished, and what needs to be done next.
 
 ## Project Overview
 
-We're deploying an n8n automation server at `ai2.vladks.com` with:
+We're deploying an n8n automation server at `n8n.example.com` with:
 - Docker containerization (n8n + NGINX)
 - SSL/TLS encryption
 - Reverse proxy configuration
@@ -123,7 +123,7 @@ Through our troubleshooting, we've identified these critical configuration requi
    ```
 
 3. **Access the application:**
-   - Open https://ai2.vladks.com in your browser
+   - Open https://n8n.example.com in your browser
    - Create or login with an account
    - Try creating and running a simple workflow
 

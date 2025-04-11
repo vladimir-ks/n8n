@@ -1,15 +1,25 @@
-# Environment variables and sensitive data
+# Environment variables and sensitive information
 .env
 .env.*
 !.env.template
 !.env.private.example
 !.env.example
+../.env.private
 
 # Generated files from templates
 *.backup
 docker-compose.yaml
 nginx.conf
 setup.sh
+
+# Backup and temporary directories
+../backup_files/
+**/backup_files/
+*/backup_files/
+backup_files/
+*backup*/
+tmp/
+**/tmp/
 
 # Allow only template versions of important files
 !*.template
@@ -25,9 +35,16 @@ logs/
 # System files
 .DS_Store
 Thumbs.db
+../default.conf
 
 # Editor directories and files
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# SSL certificates and keys
+**/*.pem
+**/*.key
+**/*.crt
+**/ssl-certs/

@@ -4,7 +4,7 @@
 ./backup.sh
 
 # Sync the backup directory to Google Drive
-# Using rclone with the vlad@vladks.com configuration
+# Using rclone with the user@example.com configuration
 BACKUP_DIR="$HOME/n8n-backups"
 GDRIVE_FOLDER="n8n-backups"
 DATE=$(date +"%Y-%m-%d")
