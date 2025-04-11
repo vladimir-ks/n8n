@@ -24,13 +24,7 @@ http {
         server_name  ${N8N_DOMAIN};
 
         location / {
-            proxy_pass http://n8n:${N8N_PORT};
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
+            return 301 https://$host$request_uri;
         }
     }
 
@@ -40,8 +34,8 @@ http {
         server_name  ${N8N_DOMAIN};
         http2        on;  # Updated format
 
-        ssl_certificate      ${SSL_CERT_PATH};
-        ssl_certificate_key  ${SSL_KEY_PATH};
+        ssl_certificate      /etc/ssl-certs/fullchain.pem;
+        ssl_certificate_key  /etc/ssl-certs/privkey.pem;
 
         ssl_session_cache    shared:SSL:10m;
         ssl_session_timeout  1d;
@@ -54,6 +48,10 @@ http {
         add_header X-Content-Type-Options "nosniff";
         add_header X-XSS-Protection "1; mode=block";
 
+        # Improved proxy settings to pass cookies and authorization properly
+        proxy_cookie_path / "/; HTTPOnly; Secure; SameSite=Lax";
+        proxy_cookie_domain n8n $host;
+
         # Root location block
         location / {
             proxy_pass http://n8n:${N8N_PORT};
@@ -62,11 +60,44 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Original-URI $request_uri;
+            proxy_set_header X-Original-Host $http_host;
 
-            # WebSocket support
+            # Pass all headers (especially important for cookies and CSRF)
+            proxy_pass_request_headers on;
+
+            # Improved WebSocket support
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
             proxy_read_timeout 86400;
+            proxy_send_timeout 86400;
+            proxy_connect_timeout 60s;
+
+            # Don't buffer responses - important for login responses with cookies
+            proxy_buffering off;
+
+            # Increase buffer sizes
+            proxy_buffer_size 128k;
+            proxy_buffers 4 256k;
+            proxy_busy_buffers_size 256k;
+        }
+
+        # REST API endpoints that handle authentication
+        location /rest/ {
+            proxy_pass http://n8n:${N8N_PORT};
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Original-URI $request_uri;
+            proxy_set_header X-Original-Host $http_host;
+
+            # Don't buffer these responses
+            proxy_buffering off;
+
+            # Needed for login CSRF handling
+            proxy_pass_request_headers on;
         }
 
         # Webhook-specific routing
@@ -86,6 +117,22 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # WebSocket connections
+        location /websocket/ {
+            proxy_pass http://n8n:${N8N_PORT};
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # WebSocket specific settings
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 86400;
+            proxy_send_timeout 86400;
         }
 
         # Assets like CSS, JS, images

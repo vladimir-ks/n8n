@@ -17,7 +17,12 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}===== n8n Template Application =====${NC}"
 echo
 
-# Required variables check
+# Critical variables check - these are essential for n8n to function properly
+CRITICAL_VARS=(
+    "N8N_ENCRYPTION_KEY"
+)
+
+# Required variables check - these are needed for the templates
 REQUIRED_VARS=(
     "N8N_DOMAIN"
     "N8N_PORT"
@@ -34,7 +39,6 @@ REQUIRED_VARS=(
     "NGINX_MEMORY_LIMIT"
     "NGINX_CPU_RESERVATION"
     "NGINX_MEMORY_RESERVATION"
-    "N8N_ENCRYPTION_KEY"
 )
 
 # Check if private environment file exists
@@ -60,7 +64,9 @@ fi
 
 # Source private environment variables
 echo "Loading environment variables from .env.private..."
+set -a # Automatically export all variables
 source .env.private
+set +a # Stop auto-exporting
 
 # Check for missing required variables
 MISSING_VARS=0
@@ -71,8 +77,23 @@ for VAR in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
+# Check for missing critical variables
+for VAR in "${CRITICAL_VARS[@]}"; do
+    if [ -z "${!VAR}" ]; then
+        echo -e "${RED}ERROR: CRITICAL variable $VAR is not set in .env.private${NC}"
+        echo -e "${RED}This variable is essential for n8n to function properly.${NC}"
+        MISSING_VARS=1
+    fi
+done
+
 if [ $MISSING_VARS -eq 1 ]; then
     echo -e "${RED}Please set all required variables in .env.private and try again.${NC}"
+    exit 1
+fi
+
+# Check for proper format of critical variables
+if [ "$N8N_ENCRYPTION_KEY" ] && [ ${#N8N_ENCRYPTION_KEY} -lt 10 ]; then
+    echo -e "${RED}ERROR: N8N_ENCRYPTION_KEY must be at least 10 characters long for security.${NC}"
     exit 1
 fi
 
@@ -91,12 +112,20 @@ process_template() {
     fi
 
     # Use envsubst to replace environment variables in the template
+    export HOST_IP N8N_DOMAIN N8N_PORT N8N_PROTOCOL N8N_DATA_DIR SSL_CERTS_DIR SSL_CERT_PATH SSL_KEY_PATH N8N_ENCRYPTION_KEY
+    export N8N_CPU_LIMIT N8N_MEMORY_LIMIT N8N_CPU_RESERVATION N8N_MEMORY_RESERVATION
+    export NGINX_CPU_LIMIT NGINX_MEMORY_LIMIT NGINX_CPU_RESERVATION NGINX_MEMORY_RESERVATION
     envsubst < "$template_file" > "$output_file"
 
     # Check for any remaining unreplaced placeholders
     if grep -q '\${[A-Za-z0-9_]*}' "$output_file"; then
         echo -e "${YELLOW}Warning: Some placeholders were not replaced in $output_file:${NC}"
-        grep -o '\${[A-Za-z0-9_]*}' "$output_file" | sort | uniq
+        grep -o '\${[A-Za-z0-9_]*}' "$output_file" | sort | uniq | while read -r placeholder; do
+            var_name=$(echo "$placeholder" | sed 's/\${//;s/}//')
+            echo -e "  - $placeholder (variable '$var_name' not defined)"
+        done
+        echo -e "${RED}Error: Template substitution incomplete. Fix the missing variables above.${NC}"
+        return 1
     else
         echo -e "${GREEN}Successfully created:${NC} $output_file"
     fi
@@ -106,19 +135,58 @@ process_template() {
         chmod +x "$output_file"
         echo -e "${BLUE}Set executable permissions on${NC} $output_file"
     fi
+
+    return 0
 }
 
 echo -e "${BLUE}Looking for template files...${NC}"
 # Find and process all template files
 TEMPLATE_COUNT=0
+TEMPLATE_ERRORS=0
 while IFS= read -r template_file; do
     process_template "$template_file"
+    if [ $? -ne 0 ]; then
+        TEMPLATE_ERRORS=$((TEMPLATE_ERRORS + 1))
+    fi
     TEMPLATE_COUNT=$((TEMPLATE_COUNT + 1))
 done < <(find . -name "*.template" -type f)
 
 if [ $TEMPLATE_COUNT -eq 0 ]; then
     echo -e "${YELLOW}No template files found.${NC}"
     exit 1
+fi
+
+if [ $TEMPLATE_ERRORS -gt 0 ]; then
+    echo -e "${RED}Template processing completed with $TEMPLATE_ERRORS errors.${NC}"
+    echo -e "${RED}Please fix the missing variables in .env.private and try again.${NC}"
+    exit 1
+fi
+
+# Validate critical configuration settings
+if [ -f ".env" ]; then
+    echo -e "${BLUE}Validating critical configuration settings...${NC}"
+
+    # Check N8N_ENDPOINT_REST
+    if grep -q "N8N_ENDPOINT_REST=" ".env"; then
+        ENDPOINT_REST_VALUE=$(grep "N8N_ENDPOINT_REST=" ".env" | cut -d'=' -f2)
+        if [ "$ENDPOINT_REST_VALUE" != "rest" ]; then
+            echo -e "${RED}WARNING: N8N_ENDPOINT_REST should be 'rest', found '$ENDPOINT_REST_VALUE'${NC}"
+            echo -e "${YELLOW}This may cause API issues with n8n v1.86+${NC}"
+        fi
+    fi
+
+    # Check for consistency between .env and docker-compose.yaml
+    if [ -f "docker-compose.yaml" ]; then
+        echo -e "${BLUE}Checking for configuration consistency...${NC}"
+
+        # Example check: N8N_ENCRYPTION_KEY
+        ENV_ENCRYPTION_KEY=$(grep "N8N_ENCRYPTION_KEY=" ".env" | cut -d'=' -f2 | sed 's/#.*//g' | tr -d ' ')
+        COMPOSE_ENCRYPTION_KEY=$(grep "N8N_ENCRYPTION_KEY=" "docker-compose.yaml" | sed 's/.*N8N_ENCRYPTION_KEY=//;s/[ "]//g')
+
+        if [ "$ENV_ENCRYPTION_KEY" != "$COMPOSE_ENCRYPTION_KEY" ]; then
+            echo -e "${YELLOW}Warning: N8N_ENCRYPTION_KEY is different in .env and docker-compose.yaml${NC}"
+        fi
+    fi
 fi
 
 echo
@@ -130,3 +198,6 @@ echo "2. Run ./setup.sh to start your n8n instance"
 echo "3. Make any necessary adjustments to the configuration"
 echo
 echo -e "${YELLOW}Note: Keep your .env.private file secure and do not commit it to version control.${NC}"
+echo
+echo -e "${BLUE}For detailed information about environment variables and their usage, see:${NC}"
+echo "ENVIRONMENT_VARIABLES.md"

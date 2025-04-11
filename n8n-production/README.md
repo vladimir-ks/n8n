@@ -5,8 +5,10 @@ This repository contains the configuration files for deploying n8n in a producti
 ## Table of Contents
 - [Files and Structure](#files-and-structure)
 - [Prerequisites](#prerequisites)
+- [Post-Clone Setup](#post-clone-setup)
 - [Templating System](#templating-system)
 - [Quick Start](#quick-start)
+- [SSL Certificate Management](#ssl-certificate-management)
 - [Environment Variables](#environment-variables)
 - [Dual Deployment Architecture](#dual-deployment-architecture)
 - [Data Persistence](#data-persistence)
@@ -30,6 +32,7 @@ This repository contains the configuration files for deploying n8n in a producti
 - `.env.example`: Example environment file with required variables
 - `.env.template`: Template for the environment file with placeholders
 - `.env.private.example`: Example private configuration with documentation
+- `.env.private`: Your specific configuration values (not committed to git)
 - `logs/`: Directory for Nginx logs
 - `Dockerfile`: Custom n8n image with additional modules installed
 - `setup.sh`: Main setup script for local environment
@@ -38,6 +41,8 @@ This repository contains the configuration files for deploying n8n in a producti
 - `setup-autostart.sh`: Script to configure auto-start on Mac
 - `n8n-watchdog.sh`: Monitoring script for n8n containers
 - `apply-templates.sh`: Script to apply template files with your configuration
+- `copy-certs.sh`: Helper script to prepare SSL certificates with proper permissions
+- `deployment-notes.md`: Documentation of deployment issues and solutions
 
 ## Prerequisites
 
@@ -47,6 +52,17 @@ This repository contains the configuration files for deploying n8n in a producti
 - Required ports (80 and 443) open on the server
 - Node.js (version specified in .env file)
 - Nginx for reverse proxy (included in Docker configuration)
+
+## Post-Clone Setup
+
+When you first clone this repository, you need to make the scripts executable:
+
+```bash
+# Make all shell scripts executable
+chmod +x *.sh
+```
+
+This step is necessary because Git doesn't preserve executable permissions when cloning repositories.
 
 ## Templating System
 
@@ -89,9 +105,29 @@ See `.env.private.example` for all required variables and documentation.
 ## Quick Start
 
 1. Clone this repository
-2. Run `./apply-templates.sh` to set up your configuration
-3. Run `./setup.sh` to prepare the environment
-4. Start n8n with `docker-compose up -d`
+2. Make scripts executable: `chmod +x *.sh`
+3. Run `./apply-templates.sh` to set up your configuration
+4. Run `./copy-certs.sh` to prepare SSL certificates
+5. Run `./setup.sh` to deploy n8n
+
+## SSL Certificate Management
+
+SSL certificates from Let's Encrypt have strict permissions that can cause issues when mounted in Docker containers. We've implemented a solution:
+
+1. The `copy-certs.sh` script creates a copy of your certificates with appropriate permissions
+2. These copies are stored in `~/ssl-certs/DOMAIN_NAME/` directory
+3. Docker mounts this directory instead of accessing the original certificates
+
+Execute this step before running the setup script:
+
+```bash
+./copy-certs.sh
+```
+
+The script handles:
+- Copying certificates from the Let's Encrypt directory
+- Setting appropriate permissions
+- Creating the necessary directory structure
 
 ## Environment Variables
 
@@ -108,6 +144,39 @@ N8N_ENCRYPTION_KEY=your_encryption_key  # MUST be identical in both environments
 ```
 
 > **⚠️ IMPORTANT**: Using the same `N8N_ENCRYPTION_KEY` in both production and development environments is critical for sharing credentials and encrypted data.
+
+## Critical Configuration Variables
+
+For proper functioning of n8n v1.86+, these configuration variables are essential:
+
+### Endpoint Configuration
+```
+# Force URL settings to be used - critical for proper operation
+N8N_ENDPOINT_REST=rest
+N8N_ENDPOINT_WEBHOOK=webhook
+N8N_ENDPOINT_WEBSOCKET=websocket
+```
+
+These variables ensure:
+- REST API endpoints work correctly (authentication, user creation)
+- Webhook URLs don't display port numbers
+- Real-time connection for workflow editing works properly
+
+### Webhook URL Configuration
+```
+# Webhook URLs without port in the URL
+N8N_WEBHOOK_URL=https://yourdomain.com/webhook/
+N8N_WEBHOOK_TEST_URL=https://yourdomain.com/webhook-test/
+```
+
+### Production Mode Settings
+```
+# Force production mode
+NODE_ENV=production
+N8N_DISABLE_PRODUCTION_MAIN_PROCESS=false
+```
+
+> **⚠️ IMPORTANT**: The `N8N_ENDPOINT_REST` value should be set to `rest` (not a full URL) to prevent API errors.
 
 ## Dual Deployment Architecture
 
@@ -133,10 +202,10 @@ The n8n data is stored in the directory specified by `N8N_DATA_DIR` (default: `~
 ## Custom Modules
 
 Both environments are configured to use these custom modules:
-- External: jszip, lodash, ajv, moment, axios, crypto-js, validator, node-fetch, fast-xml-parser, playwright, cheerio
+- External: jszip, lodash, ajv, moment, axios, crypto-js, validator, node-fetch, fast-xml-parser, cheerio
 - Built-in: fs, crypto, path, http, https, os, stream, events, util, zlib, net, dns, timers
 
-The Dockerfile ensures these modules are installed in the local environment.
+The Dockerfile ensures these modules are installed in the local environment. By default, playwright is excluded due to its large size, but you can uncomment the relevant line in the Dockerfile if you need it.
 
 ## Backup System
 
@@ -153,10 +222,10 @@ To set up the backup schedule:
 
 ## Monitoring and Maintenance
 
-- Check logs: `docker-compose logs`
+- Check logs: `docker compose logs -f`
 - Check logs in the `logs/` directory for Nginx issues
-- Restart services: `docker-compose restart`
-- Update n8n: Update the image version in Dockerfile and run `docker-compose up -d`
+- Restart services: `docker compose restart`
+- Update n8n: Update the image version in Dockerfile and run `docker compose up -d`
 
 The `n8n-watchdog.sh` script monitors system health and can be configured as a cron job with `./setup-autostart.sh`.
 
@@ -176,6 +245,7 @@ To ensure n8n runs reliably 24/7 on macOS:
 - Keep your `.env` file secure and excluded from version control
 - Regularly update Docker images and dependencies
 - Use proper firewall rules to limit access
+- SSL certificates are copied with appropriate permissions to avoid exposure
 
 ## Cloud Deployment (Render.com)
 
@@ -194,13 +264,22 @@ To transfer workflows and credentials between environments:
 
 ## Troubleshooting
 
-Common issues:
+Common issues and solutions:
 
-- **Permission problems**: Ensure volume mounts have correct permissions
-- **Memory limitations**: Adjust `NODE_OPTIONS` in `.env`
-- **Module access**: Verify external modules are in the allowlist
-- **SSL issues**: Check certificate paths and validity
-- **Docker networking**: Verify ports are properly mapped and accessible
+### Permission Issues
+- **SSL Certificates**: If nginx cannot read SSL certificates, run `./copy-certs.sh` to create properly permissioned copies
+- **NPM Package Installation**: We've modified the Dockerfile to install packages as the node user to avoid permission issues
+- **Data Directory**: Ensure the n8n data directory has appropriate permissions with `chmod -R 755 ~/.n8n_*`
+
+### Container Issues
+- **Template Substitution Problems**: If generated files have empty values, check that your `.env.private` file contains all required variables
+- **Nginx Restart Loop**: Check nginx logs with `docker logs n8n-production-nginx-1` to identify configuration issues
+- **N8N Container Crashes**: Check logs with `docker logs n8n-production-n8n-1` and adjust memory limits if needed
+
+### Connectivity Issues
+- **Cannot Access Web UI**: Verify domain is in `/etc/hosts` and pointed to 127.0.0.1 for local development
+- **SSL Certificate Errors**: Ensure the certificates are properly copied and nginx configuration points to correct paths
+- **WebSocket Connection Failures**: Check nginx configuration for proper WebSocket handling directives
 
 ## Development Guidelines
 
@@ -212,7 +291,7 @@ This project must always maintain compatibility with both deployment targets:
 
 1. **Local Development Deployment**:
    - Must work on macOS with Docker and Docker Compose
-   - Uses local domain mapping (ai.vladks.com → 127.0.0.1)
+   - Uses local domain mapping (domain.com → 127.0.0.1)
    - Requires SSL certificates to be available locally
 
 2. **Cloud Deployment**:
@@ -235,6 +314,7 @@ This project must always maintain compatibility with both deployment targets:
 
 4. **Docker Configuration**:
    - Maintain compatibility with Docker Desktop (Mac) and Render's Docker implementation
+   - Use modern `docker compose` syntax instead of `docker-compose`
 
 ### Testing Requirements
 
