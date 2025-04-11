@@ -1,0 +1,22 @@
+# Environment variables and sensitive data
+.env
+*.env
+.env.*
+
+# Log files
+logs/
+*.log
+
+# Backup files
+*.tar.gz
+*.backup
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo

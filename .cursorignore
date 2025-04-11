@@ -1,0 +1,38 @@
+# Ignore n8n data directory (can be very large)
+~/.n8n/
+
+# Ignore node_modules (can be huge and slow down indexing)
+/node_modules/
+
+# Ignore logs (change frequently, not useful for code analysis)
+logs/
+n8n-production/logs/
+*.log
+
+# Ignore Docker volumes and caches
+.docker/
+
+# Ignore temporary files and backups
+n8n-backups/
+*.tmp
+*.bak
+*.swp
+
+# Ignore large build outputs
+dist/
+build/
+out/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Add these to .cursorignore
+.git/
+.turbo/
+.github/
+cypress/
+
+# Large packages that are rarely modified
+packages/node_modules/
+packages/frontend/*/node_modules/
