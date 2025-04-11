@@ -18,3 +18,9 @@ docker/**/Dockerfile
 .vscode
 cypress
 n8n-production
+
+# Backups and temporary files
+n8n-backups/
+*.backup
+*.tar.gz
+*.tmp

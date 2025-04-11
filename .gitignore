@@ -9,6 +9,8 @@ yarn.lock
 google-generated-credentials.json
 _START_PACKAGE
 .env
+!.env.example
+!**/.env.example
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.default.json
@@ -24,3 +26,12 @@ CHANGELOG-*.md
 build-storybook.log
 *.junit.xml
 junit.xml
+
+# n8n specific
+~/.n8n/
+n8n-backups/
+*.tar.gz
+*.backup
+
+# n8n-production specific
+n8n-production/logs/
