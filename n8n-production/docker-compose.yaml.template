@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  n8n:
+    build: . # Use the local Dockerfile
+    # If you prefer using the official image instead of building:
+    # image: n8nio/n8n
+    ports:
+      - '${N8N_PORT}:5678'
+    volumes:
+      - ${N8N_DATA_DIR}:/home/node/.n8n
+      - ./.env:/home/node/.n8n/.env
+    restart: always
+    environment:
+      - N8N_HOST=${N8N_DOMAIN}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    deploy:
+      resources:
+        limits:
+          cpus: '${N8N_CPU_LIMIT}'
+          memory: ${N8N_MEMORY_LIMIT}
+        reservations:
+          cpus: '${N8N_CPU_RESERVATION}'
+          memory: ${N8N_MEMORY_RESERVATION}
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ${SSL_CERTS_DIR}:/etc/letsencrypt
+      - ./logs:/var/log/nginx
+      - ./default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - n8n
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '${NGINX_CPU_LIMIT}'
+          memory: ${NGINX_MEMORY_LIMIT}
+        reservations:
+          cpus: '${NGINX_CPU_RESERVATION}'
+          memory: ${NGINX_MEMORY_RESERVATION}

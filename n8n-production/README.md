@@ -5,6 +5,7 @@ This repository contains the configuration files for deploying n8n in a producti
 ## Table of Contents
 - [Files and Structure](#files-and-structure)
 - [Prerequisites](#prerequisites)
+- [Templating System](#templating-system)
 - [Quick Start](#quick-start)
 - [Environment Variables](#environment-variables)
 - [Dual Deployment Architecture](#dual-deployment-architecture)
@@ -27,6 +28,8 @@ This repository contains the configuration files for deploying n8n in a producti
 - `default.conf`: Empty configuration to override default Nginx settings
 - `.env`: Environment variables for n8n (not tracked in git for security)
 - `.env.example`: Example environment file with required variables
+- `.env.template`: Template for the environment file with placeholders
+- `.env.private.example`: Example private configuration with documentation
 - `logs/`: Directory for Nginx logs
 - `Dockerfile`: Custom n8n image with additional modules installed
 - `setup.sh`: Main setup script for local environment
@@ -34,6 +37,7 @@ This repository contains the configuration files for deploying n8n in a producti
 - `setup-backup-schedule.sh`: Script to configure automated backups
 - `setup-autostart.sh`: Script to configure auto-start on Mac
 - `n8n-watchdog.sh`: Monitoring script for n8n containers
+- `apply-templates.sh`: Script to apply template files with your configuration
 
 ## Prerequisites
 
@@ -44,55 +48,87 @@ This repository contains the configuration files for deploying n8n in a producti
 - Node.js (version specified in .env file)
 - Nginx for reverse proxy (included in Docker configuration)
 
+## Templating System
+
+This repository uses a template-based configuration system to protect sensitive information:
+
+1. Configuration files are stored as templates (*.template) with placeholders
+2. You provide your specific values in a private configuration file
+3. The `apply-templates.sh` script generates actual configuration files
+
+### How to Use Templates
+
+1. Copy `.env.private.example` to `.env.private` and add your values:
+   ```bash
+   cp .env.private.example .env.private
+   nano .env.private  # Edit with your specific values
+   ```
+
+2. Run the template application script:
+   ```bash
+   ./apply-templates.sh
+   ```
+
+3. Review generated files and start your n8n instance:
+   ```bash
+   ./setup.sh
+   ```
+
+### Template Variables
+
+Important variables to configure:
+
+- `N8N_DOMAIN`: Your n8n domain (e.g., n8n.example.com)
+- `N8N_DATA_DIR`: Directory where n8n data is stored
+- `SSL_CERTS_DIR`: Directory where SSL certificates are stored
+- `SSL_CERT_PATH` and `SSL_KEY_PATH`: Paths to your SSL certificate files
+- `N8N_ENCRYPTION_KEY`: Security key for encrypting sensitive data
+
+See `.env.private.example` for all required variables and documentation.
+
 ## Quick Start
 
 1. Clone this repository
-2. Copy `.env.example` to `.env` and update the values
-3. Ensure SSL certificates are in `/etc/letsencrypt/live/ai.vladks.com/` (local)
-4. Run `./setup.sh` to prepare the environment
-5. Start the services with `docker-compose up -d`
+2. Run `./apply-templates.sh` to set up your configuration
+3. Run `./setup.sh` to prepare the environment
+4. Start n8n with `docker-compose up -d`
 
 ## Environment Variables
 
-The following environment variables should be set in your `.env` file locally and in Render.com:
+Configuration is managed through environment variables defined in your `.env.private` file and applied to the templates:
 
 ```
-# General configuration
-N8N_EDITOR_BASE_URL=https://ai.vladks.com  # (or n8n.vladks.com for Render)
-N8N_HOST=ai.vladks.com  # (or n8n.vladks.com for Render)
-N8N_PORT=5678
+# Domain configuration
 N8N_PROTOCOL=https
-N8N_ENCRYPTION_KEY=your_encryption_key  # MUST be identical in both environments
+N8N_PORT=5678
+N8N_DOMAIN=n8n.example.com
 
-# External modules allowed
-NODE_FUNCTION_ALLOW_EXTERNAL=jszip,lodash,ajv,moment,axios,crypto-js,validator,node-fetch,fast-xml-parser,playwright,cheerio
-NODE_FUNCTION_ALLOW_BUILTIN=fs,crypto,path,http,https,os,stream,events,util,zlib,net,dns,timers
+# Security
+N8N_ENCRYPTION_KEY=your_encryption_key  # MUST be identical in both environments
 ```
 
-> **⚠️ IMPORTANT**: Using the same `N8N_ENCRYPTION_KEY` in both Render.com and local deployments is critical for sharing credentials and encrypted data between environments.
-
-See `.env.example` for a full list of required variables.
+> **⚠️ IMPORTANT**: Using the same `N8N_ENCRYPTION_KEY` in both production and development environments is critical for sharing credentials and encrypted data.
 
 ## Dual Deployment Architecture
 
 This repository supports two deployments:
 
-### 1. Local Mac Deployment (ai.vladks.com)
+### 1. Local Development Deployment
 - Uses Docker with a custom image that includes additional modules
-- Resources: Uses your Mac's CPU and memory
+- Resources: Uses your local machine's CPU and memory
 - Best for: Resource-intensive workflows and development
-- Local n8n web interface: https://ai.vladks.com
+- Accessible at your configured local domain
 
-### 2. Render.com Deployment (n8n.vladks.com)
+### 2. Cloud Deployment (e.g., Render.com)
 - Connected to the GitHub repository
 - Built automatically when changes are pushed
-- Resources: Uses Render's cloud infrastructure
+- Resources: Uses cloud infrastructure
 - Best for: Mission-critical workflows that need 24/7 availability
-- Render n8n web interface: https://n8n.vladks.com
+- Accessible at your configured cloud domain
 
 ## Data Persistence
 
-The n8n data is stored in `~/.n8n/` directory on the host machine and mounted as a Docker volume, ensuring data persistence across restarts.
+The n8n data is stored in the directory specified by `N8N_DATA_DIR` (default: `~/.n8n/`) and mounted as a Docker volume, ensuring data persistence across restarts.
 
 ## Custom Modules
 
@@ -174,12 +210,12 @@ When modifying this project, ensure:
 
 This project must always maintain compatibility with both deployment targets:
 
-1. **Local Mac Deployment**:
+1. **Local Development Deployment**:
    - Must work on macOS with Docker and Docker Compose
    - Uses local domain mapping (ai.vladks.com → 127.0.0.1)
    - Requires SSL certificates to be available locally
 
-2. **Render Cloud Deployment**:
+2. **Cloud Deployment**:
    - Must work on Render's infrastructure without modification
    - Same files and configuration should work in both environments
 

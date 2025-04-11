@@ -1,0 +1,33 @@
+# Environment variables and sensitive data
+.env
+.env.*
+!.env.template
+!.env.private.example
+!.env.example
+
+# Generated files from templates
+*.backup
+docker-compose.yaml
+nginx.conf
+setup.sh
+
+# Allow only template versions of important files
+!*.template
+
+# Log files
+logs/
+*.log
+
+# Backup files
+*.tar.gz
+*.backup
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
