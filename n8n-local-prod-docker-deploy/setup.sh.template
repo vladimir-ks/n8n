@@ -12,8 +12,13 @@ if [ -f "./.env.private" ]; then
     echo "Loading environment variables from .env.private..."
     source ./.env.private
 else
-    echo "ERROR: .env.private file not found. Please create it first."
-    exit 1
+    if [ -f "../.env.private" ]; then
+        echo "Loading environment variables from parent directory .env.private..."
+        source "../.env.private"
+    else
+        echo "ERROR: .env.private file not found. Please create it first."
+        exit 1
+    fi
 fi
 
 # Detect environment
@@ -39,12 +44,19 @@ fi
 
 # Get directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${SCRIPT_DIR}"
 
-# Create required directories
+# Create volumes directories in project root
 echo "Creating required directories..."
+mkdir -p "${PROJECT_ROOT}/volumes/logs"
+mkdir -p "${PROJECT_ROOT}/volumes/n8n-data"
+mkdir -p "${PROJECT_ROOT}/volumes/ssl-certs"
+mkdir -p "${PROJECT_ROOT}/volumes/npm-global"
+mkdir -p "${PROJECT_ROOT}/volumes/backups"
+
+# Create required local directories
 mkdir -p logs
-mkdir -p ~/.npm-global
 
 # Check if .env file exists
 if [ ! -f .env ]; then

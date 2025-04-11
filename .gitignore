@@ -22,6 +22,11 @@ backup_files/
 tmp/
 **/tmp/
 
+# Consolidated volumes directory
+volumes/
+volumes/**/*
+!volumes/.gitkeep
+
 # Allow only template versions of important files
 !*.template
 

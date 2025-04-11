@@ -42,6 +42,12 @@ REQUIRED_VARS=(
     "NGINX_MEMORY_RESERVATION"
 )
 
+# Path variables that should be validated
+PATH_VARS=(
+    "N8N_DATA_DIR"
+    "SSL_CERTS_DIR"
+)
+
 # Check if private environment file exists in current directory or parent directory
 if [ -f ".env.private" ]; then
     ENV_PRIVATE_PATH=".env.private"
@@ -104,9 +110,82 @@ if [ $MISSING_VARS -eq 1 ]; then
     exit 1
 fi
 
+# Enhanced validation for specific variables
+echo -e "${BLUE}Validating environment variables...${NC}"
+
 # Check for proper format of critical variables
 if [ "$N8N_ENCRYPTION_KEY" ] && [ ${#N8N_ENCRYPTION_KEY} -lt 10 ]; then
     echo -e "${RED}ERROR: N8N_ENCRYPTION_KEY must be at least 10 characters long for security.${NC}"
+    exit 1
+fi
+
+# Validate port number
+if ! [[ "$N8N_PORT" =~ ^[0-9]+$ ]] || [ "$N8N_PORT" -lt 1 ] || [ "$N8N_PORT" -gt 65535 ]; then
+    echo -e "${RED}ERROR: N8N_PORT must be a valid port number (1-65535).${NC}"
+    exit 1
+fi
+
+# Validate protocol
+if [ "$N8N_PROTOCOL" != "http" ] && [ "$N8N_PROTOCOL" != "https" ]; then
+    echo -e "${RED}ERROR: N8N_PROTOCOL must be either 'http' or 'https'.${NC}"
+    exit 1
+fi
+
+# Validate domain format (basic check)
+if ! [[ "$N8N_DOMAIN" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+    echo -e "${YELLOW}WARNING: N8N_DOMAIN format is unusual. Please verify it's correct: $N8N_DOMAIN${NC}"
+fi
+
+# Validate and prepare directories
+for VAR in "${PATH_VARS[@]}"; do
+    DIR_PATH="${!VAR}"
+
+    # Expand tilde if present
+    if [[ "$DIR_PATH" == \~* ]]; then
+        DIR_PATH="${DIR_PATH/#\~/$HOME}"
+    fi
+
+    # Create directory if it doesn't exist
+    if [ ! -d "$DIR_PATH" ]; then
+        echo -e "${YELLOW}Directory $DIR_PATH does not exist. Creating it...${NC}"
+        mkdir -p "$DIR_PATH" || {
+            echo -e "${RED}ERROR: Failed to create directory: $DIR_PATH${NC}"
+            exit 1
+        }
+    fi
+
+    # Check if directory is writable
+    if [ ! -w "$DIR_PATH" ]; then
+        echo -e "${RED}ERROR: Directory $DIR_PATH is not writable by the current user.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ Directory $DIR_PATH is valid and writable.${NC}"
+done
+
+# Check SSL certificate paths if using HTTPS
+if [ "$N8N_PROTOCOL" = "https" ]; then
+    echo -e "${BLUE}Validating SSL certificate paths for HTTPS...${NC}"
+
+    # No need to check if files exist here as copy-certs.sh will handle that
+    # Just make sure the paths are specified
+    if [ -z "$SSL_CERT_PATH" ] || [ -z "$SSL_KEY_PATH" ]; then
+        echo -e "${RED}ERROR: SSL certificate paths must be specified when using HTTPS.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ SSL certificate paths are specified.${NC}"
+    echo -e "${YELLOW}Note: Certificate files will be verified by copy-certs.sh later.${NC}"
+fi
+
+# Validate CPU and memory constraints
+if ! [[ "$N8N_CPU_LIMIT" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    echo -e "${RED}ERROR: N8N_CPU_LIMIT must be a valid number.${NC}"
+    exit 1
+fi
+
+if ! [[ "$N8N_MEMORY_LIMIT" =~ ^[0-9]+(M|G|MB|GB)?$ ]]; then
+    echo -e "${RED}ERROR: N8N_MEMORY_LIMIT must be a valid memory specification (e.g., 2048M or 2G).${NC}"
     exit 1
 fi
 
