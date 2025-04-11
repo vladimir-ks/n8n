@@ -4,7 +4,7 @@ FROM n8nio/n8n:latest
 USER node
 RUN mkdir -p /home/node/.npm-global && \
     npm config set prefix '/home/node/.npm-global' && \
-    npm install -g jszip lodash ajv moment axios crypto-js validator node-fetch fast-xml-parser cheerio
+    npm install -g jszip lodash ajv moment axios crypto-js validator node-fetch fast-xml-parser cheerio n8n-nodes-mcp
 
 # Exclude playwright because it's a large package that might not be necessary for all workflows
 # If you need playwright, uncomment the following line and rebuild
@@ -18,4 +18,3 @@ WORKDIR /home/node/.n8n
 
 # Default command
 ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
-a

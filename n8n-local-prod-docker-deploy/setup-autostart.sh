@@ -20,7 +20,8 @@ cat > "$USER_HOME/Library/LaunchAgents/com.n8n.autostart.plist" << EOL
     <string>com.n8n.autostart</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/docker-compose</string>
+        <string>/usr/local/bin/docker</string>
+        <string>compose</string>
         <string>-f</string>
         <string>${N8N_DIR}/docker-compose.yaml</string>
         <string>up</string>
@@ -57,13 +58,13 @@ cat > "$N8N_DIR/n8n-watchdog.sh" << EOL
 # Check if n8n containers are running, restart if not
 if ! docker ps | grep -q n8n-n8n-1; then
   echo "n8n container is not running. Restarting..."
-  cd "${N8N_DIR}" && docker-compose up -d
+  cd "${N8N_DIR}" && docker compose up -d
 fi
 
 # Check if nginx container is running, restart if not
 if ! docker ps | grep -q n8n-nginx-1; then
   echo "nginx container is not running. Restarting..."
-  cd "${N8N_DIR}" && docker-compose up -d nginx
+  cd "${N8N_DIR}" && docker compose up -d nginx
 fi
 EOL
 

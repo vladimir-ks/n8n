@@ -31,6 +31,7 @@ REQUIRED_VARS=(
     "SSL_CERTS_DIR"
     "SSL_CERT_PATH"
     "SSL_KEY_PATH"
+    "HOST_IP"
     "N8N_CPU_LIMIT"
     "N8N_MEMORY_LIMIT"
     "N8N_CPU_RESERVATION"
@@ -41,18 +42,30 @@ REQUIRED_VARS=(
     "NGINX_MEMORY_RESERVATION"
 )
 
-# Check if private environment file exists
-if [ ! -f ".env.private" ]; then
+# Check if private environment file exists in current directory or parent directory
+if [ -f ".env.private" ]; then
+    ENV_PRIVATE_PATH=".env.private"
+    echo -e "${GREEN}Found .env.private in the current directory.${NC}"
+elif [ -f "../.env.private" ]; then
+    ENV_PRIVATE_PATH="../.env.private"
+    echo -e "${GREEN}Found .env.private in the parent directory.${NC}"
+else
     echo -e "${YELLOW}Private environment file (.env.private) not found.${NC}"
     echo "Would you like to create it now based on the example? (y/n)"
     read -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if [ ! -f ".env.private.example" ]; then
-            echo -e "${RED}Error: .env.private.example file not found!${NC}"
+        # Check if example exists in current or parent directory
+        if [ -f ".env.private.example" ]; then
+            cp .env.private.example .env.private
+            ENV_PRIVATE_PATH=".env.private"
+        elif [ -f "../.env.private.example" ]; then
+            cp ../.env.private.example ./.env.private
+            ENV_PRIVATE_PATH=".env.private"
+        else
+            echo -e "${RED}Error: .env.private.example file not found in either directory!${NC}"
             exit 1
         fi
-        cp .env.private.example .env.private
         echo -e "${GREEN}Created .env.private from example.${NC}"
         echo -e "${YELLOW}Please edit .env.private now to set your values, then run this script again.${NC}"
         exit 0
@@ -63,16 +76,16 @@ if [ ! -f ".env.private" ]; then
 fi
 
 # Source private environment variables
-echo "Loading environment variables from .env.private..."
+echo "Loading environment variables from ${ENV_PRIVATE_PATH}..."
 set -a # Automatically export all variables
-source .env.private
+source "$ENV_PRIVATE_PATH"
 set +a # Stop auto-exporting
 
 # Check for missing required variables
 MISSING_VARS=0
 for VAR in "${REQUIRED_VARS[@]}"; do
     if [ -z "${!VAR}" ]; then
-        echo -e "${RED}Error: Required variable $VAR is not set in .env.private${NC}"
+        echo -e "${RED}Error: Required variable $VAR is not set in ${ENV_PRIVATE_PATH}${NC}"
         MISSING_VARS=1
     fi
 done
@@ -80,14 +93,14 @@ done
 # Check for missing critical variables
 for VAR in "${CRITICAL_VARS[@]}"; do
     if [ -z "${!VAR}" ]; then
-        echo -e "${RED}ERROR: CRITICAL variable $VAR is not set in .env.private${NC}"
+        echo -e "${RED}ERROR: CRITICAL variable $VAR is not set in ${ENV_PRIVATE_PATH}${NC}"
         echo -e "${RED}This variable is essential for n8n to function properly.${NC}"
         MISSING_VARS=1
     fi
 done
 
 if [ $MISSING_VARS -eq 1 ]; then
-    echo -e "${RED}Please set all required variables in .env.private and try again.${NC}"
+    echo -e "${RED}Please set all required variables in ${ENV_PRIVATE_PATH} and try again.${NC}"
     exit 1
 fi
 
@@ -158,7 +171,7 @@ fi
 
 if [ $TEMPLATE_ERRORS -gt 0 ]; then
     echo -e "${RED}Template processing completed with $TEMPLATE_ERRORS errors.${NC}"
-    echo -e "${RED}Please fix the missing variables in .env.private and try again.${NC}"
+    echo -e "${RED}Please fix the missing variables in ${ENV_PRIVATE_PATH} and try again.${NC}"
     exit 1
 fi
 

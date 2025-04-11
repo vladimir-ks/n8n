@@ -273,8 +273,8 @@ Common issues and solutions:
 
 ### Container Issues
 - **Template Substitution Problems**: If generated files have empty values, check that your `.env.private` file contains all required variables
-- **Nginx Restart Loop**: Check nginx logs with `docker logs n8n-production-nginx-1` to identify configuration issues
-- **N8N Container Crashes**: Check logs with `docker logs n8n-production-n8n-1` and adjust memory limits if needed
+- **Nginx Restart Loop**: Check nginx logs with `docker logs n8n-local-prod-docker-deploy-nginx-1` to identify configuration issues
+- **N8N Container Crashes**: Check logs with `docker logs n8n-local-prod-docker-deploy-n8n-1` and adjust memory limits if needed
 
 ### Connectivity Issues
 - **Cannot Access Web UI**: Verify domain is in `/etc/hosts` and pointed to 127.0.0.1 for local development

@@ -16,7 +16,7 @@ We're deploying an n8n automation server at `n8n.example.com` with:
 
 ## Repository Structure
 
-The repository is located at `/Users/vmks/!LEARNprogramming/n8n/n8n-production`.
+The repository is located at `/Users/vmks/!LEARNprogramming/n8n/n8n-local-prod-docker-deploy`.
 
 Key files:
 - `docker-compose.yaml`: Container configuration
@@ -110,7 +110,7 @@ Through our troubleshooting, we've identified these critical configuration requi
 
 1. **Review the current configuration:**
    ```bash
-   cd /Users/vmks/\!LEARNprogramming/n8n/n8n-production
+   cd /Users/vmks/\!LEARNprogramming/n8n/n8n-local-prod-docker-deploy
    cat .env
    cat docker-compose.yaml
    cat nginx.conf

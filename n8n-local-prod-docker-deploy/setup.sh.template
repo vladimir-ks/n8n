@@ -92,7 +92,7 @@ docker compose up -d
 
 # Check if services started correctly
 if [ "$(docker compose ps -q | wc -l)" -ne 2 ]; then
-    echo "ERROR: Failed to start n8n services. Check docker-compose logs."
+    echo "ERROR: Failed to start n8n services. Check docker compose logs."
     exit 1
 fi
 
