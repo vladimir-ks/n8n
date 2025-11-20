@@ -1,65 +1,46 @@
-# Environment variables and sensitive information
-.env
-.env.*
-!.env.template
-!.env.private.example
-!.env.example
-.env.private
-
-# Generated files from templates
-*.backup
-n8n-local-prod-docker-deploy/docker-compose.yaml
-n8n-local-prod-docker-deploy/nginx.conf
-n8n-local-prod-docker-deploy/setup.sh
-n8n-local-prod-docker-deploy/.env
-n8n-local-prod-docker-deploy/default.conf
-
-# Backup and temporary directories
-backup_files/
-**/backup_files/
-*/backup_files/
-*backup*/
-tmp/
-**/tmp/
-
-# Consolidated volumes directory
-volumes/
-volumes/**/*
-!volumes/.gitkeep
-
-# Allow only template versions of important files
-!*.template
-
-# Log files
-logs/
-*.log
-n8n-local-prod-docker-deploy/logs/
-
-# Backup files
-*.tar.gz
-*.backup
-
-# System files
+node_modules
 .DS_Store
-Thumbs.db
-default.conf
-
-# Editor directories and files
-.idea/
-.vscode/
+.tmp
+tmp
+dist
+coverage
+npm-debug.log*
+yarn.lock
+google-generated-credentials.json
+_START_PACKAGE
+.env
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.default.json
+.idea
+nodelinter.config.json
+**/package-lock.json
+packages/**/.turbo
+.turbo
+*.tsbuildinfo
+.stylelintcache
 *.swp
-*.swo
-
-# SSL certificates and keys
-**/*.pem
-**/*.key
-**/*.crt
-**/ssl-certs/
-ssl-certs/
-
-# Node modules and build artifacts
-node_modules/
-dist/
-.turbo/
-packages/**/dist/
-packages/**/node_modules/
+CHANGELOG-*.md
+*.mdx
+build-storybook.log
+*.junit.xml
+junit.xml
+test-results.json
+*.0x
+packages/testing/playwright/playwright-report
+packages/testing/playwright/test-results
+packages/testing/playwright/ms-playwright-cache
+test-results/
+compiled_app_output
+trivy_report*
+compiled
+packages/cli/src/modules/my-feature
+.secrets
+packages/testing/**/.cursor/rules/
+.venv
+.ruff_cache
+__pycache__
+packages/cli/THIRD_PARTY_LICENSES.md
+.coverage
+.nyc_output
+packages/cli/src/commands/export/outputs

@@ -12,6 +12,7 @@ import type {
 	IExecuteData,
 	IWaitingForExecution,
 	IWaitingForExecutionSource,
+	INodeExecutionData,
 } from 'n8n-workflow';
 import type PCancelable from 'p-cancelable';
 
@@ -24,64 +25,76 @@ describe('ManualExecutionService', () => {
 
 	describe('getExecutionStartNode', () => {
 		it('Should return undefined', () => {
-			const data = {
-				pinData: {},
-				startNodes: [],
-			} as unknown as IWorkflowExecutionDataProcess;
-			const workflow = {
-				getNode(nodeName: string) {
-					return {
-						name: nodeName,
-					};
+			const data = mock<IWorkflowExecutionDataProcess>();
+			const workflow = mock<Workflow>({
+				getTriggerNodes() {
+					return [];
 				},
-			} as unknown as Workflow;
+			});
 			const executionStartNode = manualExecutionService.getExecutionStartNode(data, workflow);
 			expect(executionStartNode).toBeUndefined();
 		});
 
 		it('Should return startNode', () => {
-			const data = {
+			const data = mock<IWorkflowExecutionDataProcess>({
 				pinData: {
-					node1: {},
-					node2: {},
+					node1: [mock<INodeExecutionData>()],
+					node2: [mock<INodeExecutionData>()],
 				},
 				startNodes: [{ name: 'node2' }],
-			} as unknown as IWorkflowExecutionDataProcess;
-			const workflow = {
+			});
+			const workflow = mock<Workflow>({
 				getNode(nodeName: string) {
 					if (nodeName === 'node2') {
-						return {
-							name: 'node2',
-						};
+						return mock<INode>({ name: 'node2' });
 					}
-					return undefined;
+					return null;
 				},
-			} as unknown as Workflow;
-			const executionStartNode = manualExecutionService.getExecutionStartNode(data, workflow);
-			expect(executionStartNode).toEqual({
-				name: 'node2',
 			});
+			const executionStartNode = manualExecutionService.getExecutionStartNode(data, workflow);
+			expect(executionStartNode?.name).toEqual('node2');
 		});
 
 		it('Should return triggerToStartFrom trigger node', () => {
-			const data = {
+			const data = mock<IWorkflowExecutionDataProcess>({
 				pinData: {
-					node1: {},
-					node2: {},
+					node1: [mock<INodeExecutionData>()],
+					node2: [mock<INodeExecutionData>()],
 				},
 				triggerToStartFrom: { name: 'node3' },
-			} as unknown as IWorkflowExecutionDataProcess;
-			const workflow = {
-				getNode(nodeName: string) {
-					return {
-						name: nodeName,
-					};
-				},
-			} as unknown as Workflow;
-			const executionStartNode = manualExecutionService.getExecutionStartNode(data, workflow);
-			expect(executionStartNode).toEqual({
-				name: 'node3',
 			});
+			const workflow = mock<Workflow>({
+				getNode(nodeName: string) {
+					return mock<INode>({ name: nodeName });
+				},
+			});
+			const executionStartNode = manualExecutionService.getExecutionStartNode(data, workflow);
+			expect(executionStartNode?.name).toEqual('node3');
+		});
+
+		it('should return undefined, even if manual trigger node is available', () => {
+			const scheduleTrigger = mock<INode>({
+				type: 'n8n-nodes-base.scheduleTrigger',
+				name: 'Wed 12:00',
+			});
+
+			const manualTrigger = mock<INode>({
+				type: 'n8n-nodes-base.manualTrigger',
+				name: 'When clicking ‘Execute workflow’',
+			});
+
+			const data = mock<IWorkflowExecutionDataProcess>({
+				startNodes: [scheduleTrigger],
+				triggerToStartFrom: undefined,
+			});
+
+			const workflow = mock<Workflow>({
+				getTriggerNodes() {
+					return [scheduleTrigger, manualTrigger];
+				},
+			});
+			const executionStartNode = manualExecutionService.getExecutionStartNode(data, workflow);
+			expect(executionStartNode?.name).toBeUndefined();
 		});
 	});
 
@@ -226,10 +239,12 @@ describe('ManualExecutionService', () => {
 				executionMode: 'manual',
 				destinationNode: undefined,
 				pinData: undefined,
+				runData: undefined,
 			});
 
 			const workflow = mock<Workflow>({
 				getNode: jest.fn().mockReturnValue(null),
+				getTriggerNodes: jest.fn().mockReturnValue([]),
 			});
 
 			const additionalData = mock<IWorkflowExecuteAdditionalData>();
@@ -243,12 +258,10 @@ describe('ManualExecutionService', () => {
 
 			await manualExecutionService.runManually(data, workflow, additionalData, executionId);
 
-			expect(mockRun).toHaveBeenCalledWith(
-				workflow,
-				undefined, // startNode
-				undefined, // destinationNode
-				undefined, // pinData
-			);
+			expect(mockRun.mock.calls[0][0]).toBe(workflow);
+			expect(mockRun.mock.calls[0][1]).toBeUndefined(); // startNode
+			expect(mockRun.mock.calls[0][2]).toBeUndefined(); // destinationNode
+			expect(mockRun.mock.calls[0][3]).toBeUndefined(); // pinData
 		});
 
 		it('should use execution start node when available for full execution', async () => {
@@ -257,6 +270,7 @@ describe('ManualExecutionService', () => {
 				pinData: {},
 				startNodes: [],
 				destinationNode: undefined,
+				runData: undefined,
 			});
 
 			const startNode = mock<INode>({ name: 'startNode' });
@@ -286,53 +300,82 @@ describe('ManualExecutionService', () => {
 
 			expect(manualExecutionService.getExecutionStartNode).toHaveBeenCalledWith(data, workflow);
 
+			expect(mockRun.mock.calls[0][0]).toBe(workflow);
+			expect(mockRun.mock.calls[0][1]).toBe(startNode); // startNode
+			expect(mockRun.mock.calls[0][2]).toBeUndefined(); // destinationNode
+			expect(mockRun.mock.calls[0][3]).toBe(data.pinData); // pinData
+		});
+
+		it('should pass the triggerToStartFrom to workflowExecute.run for full execution', async () => {
+			const mockTriggerData = mock<ITaskData>();
+			const triggerNodeName = 'triggerNode';
+			const data = mock<IWorkflowExecutionDataProcess>({
+				executionMode: 'manual',
+				destinationNode: undefined,
+				pinData: undefined,
+				triggerToStartFrom: {
+					name: triggerNodeName,
+					data: mockTriggerData,
+				},
+				runData: undefined,
+			});
+
+			const startNode = mock<INode>({ name: 'startNode' });
+			const workflow = mock<Workflow>({
+				getNode: jest.fn().mockReturnValue(startNode),
+			});
+
+			const additionalData = mock<IWorkflowExecuteAdditionalData>();
+			const executionId = 'test-execution-id';
+
+			jest.spyOn(manualExecutionService, 'getExecutionStartNode').mockReturnValue(startNode);
+
+			const mockRun = jest.fn().mockReturnValue('mockRunReturn');
+			require('n8n-core').WorkflowExecute.mockImplementationOnce(() => ({
+				run: mockRun,
+				processRunExecutionData: jest.fn(),
+			}));
+
+			await manualExecutionService.runManually(data, workflow, additionalData, executionId);
+
 			expect(mockRun).toHaveBeenCalledWith(
 				workflow,
 				startNode, // startNode
 				undefined, // destinationNode
-				data.pinData, // pinData
+				undefined, // pinData
+				data.triggerToStartFrom, // triggerToStartFrom
 			);
 		});
 
-		it('should handle partial execution with provided runData, startNodes and no destinationNode', async () => {
-			const mockRunData = { node1: [{ data: { main: [[{ json: {} }]] } }] };
-			const startNodeName = 'node1';
+		it('should not call `runPartialWorkflow2` when destinationNode is undefined', async () => {
 			const data = mock<IWorkflowExecutionDataProcess>({
 				executionMode: 'manual',
-				runData: mockRunData,
-				startNodes: [{ name: startNodeName }],
+				runData: { node1: [{ data: { main: [[{ json: {} }]] } }] },
+				startNodes: [{ name: 'node1' }],
 				destinationNode: undefined,
 				pinData: undefined,
 			});
 
-			const workflow = mock<Workflow>({
-				getNode: jest.fn((name) => {
-					if (name === startNodeName) return mock<INode>({ name: startNodeName });
-					return null;
-				}),
-			});
+			const workflow = mock<Workflow>();
 
 			const additionalData = mock<IWorkflowExecuteAdditionalData>();
 			const executionId = 'test-execution-id';
 
 			const mockRunPartialWorkflow = jest.fn().mockReturnValue('mockPartialReturn');
 			require('n8n-core').WorkflowExecute.mockImplementationOnce(() => ({
-				runPartialWorkflow: mockRunPartialWorkflow,
-				processRunExecutionData: jest.fn(),
+				runPartialWorkflow2: mockRunPartialWorkflow,
 			}));
 
-			await manualExecutionService.runManually(data, workflow, additionalData, executionId);
-
-			expect(mockRunPartialWorkflow).toHaveBeenCalledWith(
-				workflow,
-				mockRunData,
-				data.startNodes,
-				undefined, // destinationNode
-				undefined, // pinData
+			await expect(
+				async () =>
+					await manualExecutionService.runManually(data, workflow, additionalData, executionId),
+			).rejects.toThrowError(
+				'a destinationNodeName is required for the new partial execution flow',
 			);
+			expect(mockRunPartialWorkflow).not.toHaveBeenCalled();
 		});
 
-		it('should handle partial execution with partialExecutionVersion=2', async () => {
+		it('should handle partial execution', async () => {
 			const mockRunData = { node1: [{ data: { main: [[{ json: {} }]] } }] };
 			const dirtyNodeNames = ['node2', 'node3'];
 			const destinationNodeName = 'destinationNode';
@@ -340,7 +383,6 @@ describe('ManualExecutionService', () => {
 				executionMode: 'manual',
 				runData: mockRunData,
 				startNodes: [{ name: 'node1' }],
-				partialExecutionVersion: 2,
 				dirtyNodeNames,
 				destinationNode: destinationNodeName,
 			});
@@ -444,5 +486,81 @@ describe('ManualExecutionService', () => {
 				}),
 			);
 		});
+		it('should call runPartialWorkflow2 with runData and empty startNodes', async () => {
+			const mockRunData = { nodeA: [{ data: { main: [[{ json: { value: 'test' } }]] } }] };
+			const destinationNodeName = 'nodeB';
+			const data = mock<IWorkflowExecutionDataProcess>({
+				executionMode: 'manual',
+				runData: mockRunData,
+				startNodes: [],
+				destinationNode: destinationNodeName,
+				pinData: {},
+				dirtyNodeNames: [],
+				agentRequest: undefined,
+			});
+
+			const workflow = mock<Workflow>({
+				getNode: jest.fn((name) => mock<INode>({ name })),
+			});
+
+			const additionalData = mock<IWorkflowExecuteAdditionalData>();
+			const executionId = 'test-exec-id-v2-empty-start';
+
+			const mockRunPartialWorkflow2 = jest.fn().mockReturnValue('mockPartial2Return-v2-empty');
+			(core.WorkflowExecute as jest.Mock).mockImplementationOnce(() => ({
+				runPartialWorkflow2: mockRunPartialWorkflow2,
+				processRunExecutionData: jest.fn(),
+				run: jest.fn(),
+			}));
+
+			await manualExecutionService.runManually(
+				data,
+				workflow,
+				additionalData,
+				executionId,
+				data.pinData,
+			);
+
+			expect(mockRunPartialWorkflow2).toHaveBeenCalledWith(
+				workflow,
+				mockRunData,
+				data.pinData,
+				data.dirtyNodeNames,
+				destinationNodeName,
+				data.agentRequest,
+			);
+		});
+	});
+
+	it('should call workflowExecute.run for full execution when execution mode is evaluation', async () => {
+		const data = mock<IWorkflowExecutionDataProcess>({
+			executionMode: 'evaluation',
+			destinationNode: undefined,
+			pinData: {},
+			runData: {},
+			triggerToStartFrom: undefined,
+		});
+
+		const workflow = mock<Workflow>({
+			getNode: jest.fn().mockReturnValue(null),
+			getTriggerNodes: jest.fn().mockReturnValue([]),
+		});
+
+		const additionalData = mock<IWorkflowExecuteAdditionalData>();
+		const executionId = 'test-execution-id-evaluation';
+
+		const mockRun = jest.fn().mockReturnValue('mockRunReturnEvaluation');
+		require('n8n-core').WorkflowExecute.mockImplementationOnce(() => ({
+			run: mockRun,
+			processRunExecutionData: jest.fn(),
+		}));
+
+		await manualExecutionService.runManually(data, workflow, additionalData, executionId);
+
+		expect(mockRun.mock.calls[0][0]).toBe(workflow);
+		expect(mockRun.mock.calls[0][1]).toBeUndefined(); // startNode
+		expect(mockRun.mock.calls[0][2]).toBeUndefined(); // destinationNode
+		expect(mockRun.mock.calls[0][3]).toBe(data.pinData); // pinData
+		expect(mockRun.mock.calls[0][4]).toBeUndefined(); // triggerToStartFrom
 	});
 });

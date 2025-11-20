@@ -1,7 +1,8 @@
 import { GlobalConfig } from '@n8n/config';
+import { WorkflowEntity, ProjectRepository, TagRepository, WorkflowRepository } from '@n8n/db';
 import { Container } from '@n8n/di';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
-import { In, Like, QueryFailedError } from '@n8n/typeorm';
+import { In, IsNull, Like, Not, QueryFailedError } from '@n8n/typeorm';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
 import type { FindOptionsWhere } from '@n8n/typeorm';
 import type express from 'express';
@@ -9,15 +10,15 @@ import { v4 as uuid } from 'uuid';
 import { z } from 'zod';
 
 import { ActiveWorkflowManager } from '@/active-workflow-manager';
-import { WorkflowEntity } from '@/databases/entities/workflow-entity';
-import { ProjectRepository } from '@/databases/repositories/project.repository';
-import { SharedWorkflowRepository } from '@/databases/repositories/shared-workflow.repository';
-import { TagRepository } from '@/databases/repositories/tag.repository';
-import { WorkflowRepository } from '@/databases/repositories/workflow.repository';
 import { EventService } from '@/events/event.service';
 import { ExternalHooks } from '@/external-hooks';
-import { addNodeIds, replaceInvalidCredentials } from '@/workflow-helpers';
-import { WorkflowHistoryService } from '@/workflows/workflow-history.ee/workflow-history.service.ee';
+import {
+	addNodeIds,
+	getActiveVersionUpdateValue,
+	replaceInvalidCredentials,
+} from '@/workflow-helpers';
+import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
+import { WorkflowHistoryService } from '@/workflows/workflow-history/workflow-history.service';
 import { WorkflowService } from '@/workflows/workflow.service';
 import { EnterpriseWorkflowService } from '@/workflows/workflow.service.ee';
 
@@ -32,11 +33,16 @@ import {
 	updateTags,
 } from './workflows.service';
 import type { WorkflowRequest } from '../../../types';
-import { projectScope, validCursor } from '../../shared/middlewares/global.middleware';
+import {
+	apiKeyHasScope,
+	projectScope,
+	validCursor,
+} from '../../shared/middlewares/global.middleware';
 import { encodeNextCursor } from '../../shared/services/pagination.service';
 
 export = {
 	createWorkflow: [
+		apiKeyHasScope('workflow:create'),
 		async (req: WorkflowRequest.Create, res: express.Response): Promise<express.Response> => {
 			const workflow = req.body;
 
@@ -71,13 +77,14 @@ export = {
 		},
 	],
 	transferWorkflow: [
+		apiKeyHasScope('workflow:move'),
 		projectScope('workflow:move', 'workflow'),
 		async (req: WorkflowRequest.Transfer, res: express.Response) => {
 			const { id: workflowId } = req.params;
 
 			const body = z.object({ destinationProjectId: z.string() }).parse(req.body);
 
-			await Container.get(EnterpriseWorkflowService).transferOne(
+			await Container.get(EnterpriseWorkflowService).transferWorkflow(
 				req.user,
 				workflowId,
 				body.destinationProjectId,
@@ -87,11 +94,12 @@ export = {
 		},
 	],
 	deleteWorkflow: [
+		apiKeyHasScope('workflow:delete'),
 		projectScope('workflow:delete', 'workflow'),
 		async (req: WorkflowRequest.Get, res: express.Response): Promise<express.Response> => {
 			const { id: workflowId } = req.params;
 
-			const workflow = await Container.get(WorkflowService).delete(req.user, workflowId);
+			const workflow = await Container.get(WorkflowService).delete(req.user, workflowId, true);
 			if (!workflow) {
 				// user trying to access a workflow they do not own
 				// or workflow does not exist
@@ -102,16 +110,20 @@ export = {
 		},
 	],
 	getWorkflow: [
+		apiKeyHasScope('workflow:read'),
 		projectScope('workflow:read', 'workflow'),
 		async (req: WorkflowRequest.Get, res: express.Response): Promise<express.Response> => {
 			const { id } = req.params;
 			const { excludePinnedData = false } = req.query;
 
-			const workflow = await Container.get(SharedWorkflowRepository).findWorkflowForUser(
+			const workflow = await Container.get(WorkflowFinderService).findWorkflowForUser(
 				id,
 				req.user,
 				['workflow:read'],
-				{ includeTags: !Container.get(GlobalConfig).tags.disabled },
+				{
+					includeTags: !Container.get(GlobalConfig).tags.disabled,
+					includeActiveVersion: true,
+				},
 			);
 
 			if (!workflow) {
@@ -134,6 +146,7 @@ export = {
 		},
 	],
 	getWorkflows: [
+		apiKeyHasScope('workflow:list'),
 		validCursor,
 		async (req: WorkflowRequest.GetAll, res: express.Response): Promise<express.Response> => {
 			const {
@@ -147,11 +160,19 @@ export = {
 			} = req.query;
 
 			const where: FindOptionsWhere<WorkflowEntity> = {
-				...(active !== undefined && { active }),
 				...(name !== undefined && { name: Like('%' + name.trim() + '%') }),
 			};
 
-			if (['global:owner', 'global:admin'].includes(req.user.role)) {
+			// Filter by active status based on activeVersionId
+			if (active !== undefined) {
+				if (active) {
+					where.activeVersionId = Not(IsNull());
+				} else {
+					where.activeVersionId = IsNull();
+				}
+			}
+
+			if (['global:owner', 'global:admin'].includes(req.user.role.slug)) {
 				if (tags) {
 					const workflowIds = await Container.get(TagRepository).getWorkflowIdsViaTags(
 						parseTagNames(tags),
@@ -160,7 +181,7 @@ export = {
 				}
 
 				if (projectId) {
-					const workflows = await Container.get(SharedWorkflowRepository).findAllWorkflowsForUser(
+					const workflows = await Container.get(WorkflowFinderService).findAllWorkflowsForUser(
 						req.user,
 						['workflow:read'],
 					);
@@ -180,7 +201,7 @@ export = {
 					);
 				}
 
-				let workflows = await Container.get(SharedWorkflowRepository).findAllWorkflowsForUser(
+				let workflows = await Container.get(WorkflowFinderService).findAllWorkflowsForUser(
 					req.user,
 					['workflow:read'],
 				);
@@ -205,11 +226,38 @@ export = {
 				where.id = In(workflowsIds);
 			}
 
+			const selectFields: Array<keyof WorkflowEntity> = [
+				'id',
+				'name',
+				'active',
+				'activeVersionId',
+				'createdAt',
+				'updatedAt',
+				'isArchived',
+				'nodes',
+				'connections',
+				'settings',
+				'staticData',
+				'meta',
+				'versionId',
+				'triggerCount',
+				'shared',
+			];
+
+			if (!excludePinnedData) {
+				selectFields.push('pinData');
+			}
+
+			const relations = ['shared', 'activeVersion'];
+			if (!Container.get(GlobalConfig).tags.disabled) {
+				relations.push('tags');
+			}
 			const [workflows, count] = await Container.get(WorkflowRepository).findAndCount({
 				skip: offset,
 				take: limit,
+				select: selectFields,
+				relations,
 				where,
-				...(!Container.get(GlobalConfig).tags.disabled && { relations: ['tags'] }),
 			});
 
 			if (excludePinnedData) {
@@ -234,6 +282,7 @@ export = {
 		},
 	],
 	updateWorkflow: [
+		apiKeyHasScope('workflow:update'),
 		projectScope('workflow:update', 'workflow'),
 		async (req: WorkflowRequest.Update, res: express.Response): Promise<express.Response> => {
 			const { id } = req.params;
@@ -242,10 +291,11 @@ export = {
 			updateData.id = id;
 			updateData.versionId = uuid();
 
-			const workflow = await Container.get(SharedWorkflowRepository).findWorkflowForUser(
+			const workflow = await Container.get(WorkflowFinderService).findWorkflowForUser(
 				id,
 				req.user,
 				['workflow:update'],
+				{ includeActiveVersion: true },
 			);
 
 			if (!workflow) {
@@ -259,21 +309,36 @@ export = {
 
 			const workflowManager = Container.get(ActiveWorkflowManager);
 
-			if (workflow.active) {
+			if (workflow.activeVersionId !== null) {
 				// When workflow gets saved always remove it as the triggers could have been
 				// changed and so the changes would not take effect
 				await workflowManager.remove(id);
 			}
 
 			try {
-				await updateWorkflow(workflow.id, updateData);
+				// First add a record to workflow history to be able to get the full version object during the update
+				await Container.get(WorkflowHistoryService).saveVersion(req.user, updateData, workflow.id);
+
+				const updatedVersion = await Container.get(WorkflowHistoryService).getVersion(
+					req.user,
+					id,
+					updateData.versionId,
+				);
+
+				updateData.activeVersion = getActiveVersionUpdateValue(
+					workflow,
+					updatedVersion,
+					undefined, // active is read-only
+				);
+
+				await updateWorkflow(workflow, updateData);
 			} catch (error) {
 				if (error instanceof Error) {
 					return res.status(400).json({ message: error.message });
 				}
 			}
 
-			if (workflow.active) {
+			if (workflow.activeVersionId !== null) {
 				try {
 					await workflowManager.add(workflow.id, 'update');
 				} catch (error) {
@@ -284,14 +349,6 @@ export = {
 			}
 
 			const updatedWorkflow = await getWorkflowById(workflow.id);
-
-			if (updatedWorkflow) {
-				await Container.get(WorkflowHistoryService).saveVersion(
-					req.user,
-					updatedWorkflow,
-					workflow.id,
-				);
-			}
 
 			await Container.get(ExternalHooks).run('workflow.afterUpdate', [updateData]);
 			Container.get(EventService).emit('workflow-saved', {
@@ -304,14 +361,16 @@ export = {
 		},
 	],
 	activateWorkflow: [
+		apiKeyHasScope('workflow:activate'),
 		projectScope('workflow:update', 'workflow'),
 		async (req: WorkflowRequest.Activate, res: express.Response): Promise<express.Response> => {
 			const { id } = req.params;
 
-			const workflow = await Container.get(SharedWorkflowRepository).findWorkflowForUser(
+			const workflow = await Container.get(WorkflowFinderService).findWorkflowForUser(
 				id,
 				req.user,
 				['workflow:update'],
+				{ includeActiveVersion: true },
 			);
 
 			if (!workflow) {
@@ -320,33 +379,56 @@ export = {
 				return res.status(404).json({ message: 'Not Found' });
 			}
 
-			if (!workflow.active) {
+			const activeVersionId = workflow.versionId;
+
+			const newVersionIsBeingActivated =
+				activeVersionId && activeVersionId !== workflow.activeVersion?.versionId;
+
+			if (!workflow.activeVersionId || newVersionIsBeingActivated) {
 				try {
+					// change the status to active in the DB
+					const activeVersion = await setWorkflowAsActive(req.user, workflow.id, activeVersionId);
+
 					await Container.get(ActiveWorkflowManager).add(workflow.id, 'activate');
+
+					// Update the workflow object for response
+					workflow.active = true;
+					workflow.activeVersionId = activeVersionId;
+					workflow.activeVersion = activeVersion;
 				} catch (error) {
+					// Rollback: restore previous state
+					await Container.get(WorkflowRepository).update(workflow.id, {
+						active: workflow.active,
+						activeVersion: workflow.activeVersion,
+						updatedAt: new Date(),
+					});
+
 					if (error instanceof Error) {
 						return res.status(400).json({ message: error.message });
 					}
 				}
 
-				// change the status to active in the DB
-				await setWorkflowAsActive(workflow.id);
-
-				workflow.active = true;
+				Container.get(EventService).emit('workflow-activated', {
+					user: req.user,
+					workflowId: workflow.id,
+					workflow,
+					publicApi: true,
+				});
 
 				return res.json(workflow);
 			}
 
-			// nothing to do as the workflow is already active
+			// nothing to do as this version is already active
 			return res.json(workflow);
 		},
 	],
 	deactivateWorkflow: [
+		apiKeyHasScope('workflow:deactivate'),
 		projectScope('workflow:update', 'workflow'),
 		async (req: WorkflowRequest.Activate, res: express.Response): Promise<express.Response> => {
 			const { id } = req.params;
 
-			const workflow = await Container.get(SharedWorkflowRepository).findWorkflowForUser(
+			const workflow = await Container.get(WorkflowFinderService).findWorkflowForUser(
 				id,
 				req.user,
 				['workflow:update'],
@@ -360,12 +442,22 @@ export = {
 
 			const activeWorkflowManager = Container.get(ActiveWorkflowManager);
 
-			if (workflow.active) {
+			if (workflow.activeVersionId) {
 				await activeWorkflowManager.remove(workflow.id);
 
 				await setWorkflowAsInactive(workflow.id);
 
+				// Update the workflow object for response
 				workflow.active = false;
+				workflow.activeVersionId = null;
+				workflow.activeVersion = null;
+
+				Container.get(EventService).emit('workflow-deactivated', {
+					user: req.user,
+					workflowId: workflow.id,
+					workflow,
+					publicApi: true,
+				});
 
 				return res.json(workflow);
 			}
@@ -375,6 +467,7 @@ export = {
 		},
 	],
 	getWorkflowTags: [
+		apiKeyHasScope('workflowTags:list'),
 		projectScope('workflow:read', 'workflow'),
 		async (req: WorkflowRequest.GetTags, res: express.Response): Promise<express.Response> => {
 			const { id } = req.params;
@@ -383,7 +476,7 @@ export = {
 				return res.status(400).json({ message: 'Workflow Tags Disabled' });
 			}
 
-			const workflow = await Container.get(SharedWorkflowRepository).findWorkflowForUser(
+			const workflow = await Container.get(WorkflowFinderService).findWorkflowForUser(
 				id,
 				req.user,
 				['workflow:read'],
@@ -401,6 +494,7 @@ export = {
 		},
 	],
 	updateWorkflowTags: [
+		apiKeyHasScope('workflowTags:update'),
 		projectScope('workflow:update', 'workflow'),
 		async (req: WorkflowRequest.UpdateTags, res: express.Response): Promise<express.Response> => {
 			const { id } = req.params;
@@ -410,7 +504,7 @@ export = {
 				return res.status(400).json({ message: 'Workflow Tags Disabled' });
 			}
 
-			const sharedWorkflow = await Container.get(SharedWorkflowRepository).findWorkflowForUser(
+			const sharedWorkflow = await Container.get(WorkflowFinderService).findWorkflowForUser(
 				id,
 				req.user,
 				['workflow:update'],

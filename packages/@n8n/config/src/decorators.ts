@@ -3,7 +3,7 @@ import { Container, Service } from '@n8n/di';
 import { readFileSync } from 'fs';
 import { z } from 'zod';
 
-// eslint-disable-next-line @typescript-eslint/ban-types
+// eslint-disable-next-line @typescript-eslint/no-restricted-types
 type Class = Function;
 type Constructable<T = unknown> = new (rawValue: string) => T;
 type PropertyKey = string | symbol;
@@ -27,11 +27,12 @@ const readEnv = (envName: string) => {
 };
 
 export const Config: ClassDecorator = (ConfigClass: Class) => {
-	const factory = function () {
-		const config = new (ConfigClass as new () => Record<PropertyKey, unknown>)();
+	const factory = function (...args: unknown[]) {
+		const config = new (ConfigClass as new (...a: unknown[]) => Record<PropertyKey, unknown>)(
+			...args,
+		);
 		const classMetadata = globalMetadata.get(ConfigClass);
 		if (!classMetadata) {
-			// eslint-disable-next-line n8n-local-rules/no-plain-errors
 			throw new Error('Invalid config class: ' + ConfigClass.name);
 		}
 
@@ -50,6 +51,7 @@ export const Config: ClassDecorator = (ConfigClass: Class) => {
 						);
 						continue;
 					}
+					config[key] = result.data;
 				} else if (type === Number) {
 					const parsed = Number(value);
 					if (isNaN(parsed)) {
@@ -73,12 +75,15 @@ export const Config: ClassDecorator = (ConfigClass: Class) => {
 						config[key] = new Date(timestamp);
 					}
 				} else if (type === String) {
-					config[key] = value;
+					config[key] = value.trim().replace(/^(['"])(.*)\1$/, '$2');
 				} else {
 					config[key] = new (type as Constructable)(value);
 				}
 			}
 		}
+
+		if (typeof config.sanitize === 'function') config.sanitize();
+
 		return config;
 	};
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -101,9 +106,8 @@ export const Env =
 			globalMetadata.get(ConfigClass) ?? new Map<PropertyKey, PropertyMetadata>();
 
 		const type = Reflect.getMetadata('design:type', target, key) as PropertyType;
-		const isEnum = schema instanceof z.ZodEnum;
-		if (type === Object && !isEnum) {
-			// eslint-disable-next-line n8n-local-rules/no-plain-errors
+		const isZodSchema = schema instanceof z.ZodType;
+		if (type === Object && !isZodSchema) {
 			throw new Error(
 				`Invalid decorator metadata on key "${key as string}" on ${ConfigClass.name}\n Please use explicit typing on all config fields`,
 			);
