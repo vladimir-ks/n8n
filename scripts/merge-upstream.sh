@@ -80,11 +80,22 @@ echo "Verifying custom fixes after merge..."
 if ./scripts/verify-custom-fixes.sh; then
     echo ""
     echo -e "${GREEN}✓ All custom fixes preserved!${NC}"
+
+    # Check if lockfile was modified and stage it
+    if git diff --name-only | grep -q "pnpm-lock.yaml"; then
+        echo ""
+        echo "Staging updated pnpm-lock.yaml..."
+        git add pnpm-lock.yaml
+        echo -e "${GREEN}✓ Lockfile staged${NC}"
+    fi
+
     echo ""
     echo "Next steps:"
     echo "  1. Review the changes: git log HEAD~1..HEAD"
-    echo "  2. Test the build if needed"
-    echo "  3. Push to origin: git push origin master"
+    echo "  2. Check lockfile changes: git diff --cached pnpm-lock.yaml | head -50"
+    echo "  3. Test the build if needed"
+    echo "  4. Commit if ready: git commit -m 'Merge upstream changes'"
+    echo "  5. Push to origin: git push origin master"
 else
     echo ""
     echo -e "${YELLOW}⚠️  Some custom fixes may have been overwritten${NC}"

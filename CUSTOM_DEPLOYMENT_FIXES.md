@@ -100,6 +100,8 @@ This will check that all custom fixes are still present. If any are missing, the
 ```
 This script uses patches to re-apply only our custom changes.
 
+**IMPORTANT:** After restoring custom fixes, the script automatically runs `pnpm install --lockfile-only` to update the `pnpm-lock.yaml` file. This ensures that the lockfile stays in sync with any package.json modifications, preventing frozen-lockfile errors during deployment.
+
 ## Adding New Custom Fixes
 
 If you add a new custom deployment fix:

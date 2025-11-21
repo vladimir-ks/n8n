@@ -24,6 +24,14 @@ git apply --reject --whitespace=fix "scripts/patches/codemirror-lezer-dep.patch"
 echo "  -> Applying .gitignore private file entries..."
 git apply --reject --whitespace=fix "scripts/patches/gitignore-private-files.patch"
 
+# Update lockfile if package.json files were modified
+echo ""
+echo "Updating pnpm-lock.yaml to sync with package.json changes..."
+if pnpm install --lockfile-only; then
+    echo "  ✓ Lockfile updated successfully"
+else
+    echo "  ⚠️  Warning: Failed to update lockfile. You may need to run 'pnpm install' manually."
+fi
 
 echo ""
 echo "Restore process finished. Please check for any '.rej' files, which indicate failed patches."
