@@ -6,121 +6,51 @@ This repository contains **custom deployment fixes** that are specific to Render
 
 ### ⚠️ NEVER Use `-X theirs` Strategy for Merges
 
-**CRITICAL RULE:** When merging from upstream, NEVER use `git merge -X theirs` as this will overwrite all custom deployment fixes and cause build failures.
+**CRITICAL RULE:** When merging from upstream, NEVER use `git merge -X theirs` as this will discard important upstream changes and can break the build.
 
-### Required Merge Workflow
+### Recommended Merge Workflow
 
-When merging upstream changes, you MUST follow these steps:
-
-1. **Before merging:**
-   ```bash
-   git fetch upstream
-   git checkout master
-   git status  # Ensure working directory is clean
-   ```
-
-2. **Verify custom fixes are present:**
-   ```bash
-   ./scripts/verify-custom-fixes.sh
-   ```
-   This MUST pass before proceeding. If it fails, fix the issues first.
-
-3. **Perform the merge:**
-   ```bash
-   git merge upstream/master --no-edit
-   ```
-   The `.gitattributes` file will automatically preserve custom fixes using `merge=ours` strategy.
-
-4. **After merging, ALWAYS verify:**
-   ```bash
-   ./scripts/verify-custom-fixes.sh
-   ```
-   If this fails, you MUST restore the fixes before committing:
-   ```bash
-   ./scripts/restore-custom-fixes.sh
-   # Then manually verify and commit the restored fixes
-   ```
-
-5. **Commit and push:**
-   ```bash
-   git push origin master
-   ```
-
-### Custom Deployment Fixes That Must Be Preserved
-
-The following files contain custom fixes and are protected by `.gitattributes`:
-
-1. **`packages/frontend/editor-ui/vite.config.mts`**
-   - Contains Rolldown dedupe configuration for `@codemirror` packages
-   - Required for build to succeed on Render
-   - Look for: `// Fix Rolldown module resolution for @codemirror packages`
-
-2. **`packages/@n8n/codemirror-lang-sql/package.json`**
-   - Contains `@lezer/common` dependency
-   - Required for build to succeed
-   - Look for: `"@lezer/common": "^1.0.0"` in dependencies
-
-3. **`.gitignore`**
-   - Contains entries for `_backups/` and `_private_docs/`
-   - Prevents committing sensitive files
-
-### If Merge Conflicts Occur
-
-If you encounter merge conflicts in protected files:
-
-1. **DO NOT** accept upstream changes automatically
-2. **DO** check what the conflict is about
-3. **DO** preserve the custom fix parts (dedupe config, @lezer/common dependency, private files entries)
-4. **DO** integrate upstream changes while keeping custom fixes
-5. **DO** run `./scripts/verify-custom-fixes.sh` after resolving conflicts
-
-### Using the Merge Helper Script
-
-The safest way to merge is using the provided script:
+**You MUST use the merge helper script.** This is the only approved method for merging upstream changes.
 
 ```bash
 ./scripts/merge-upstream.sh
 ```
 
-This script:
-- Verifies fixes before merging
-- Shows what will be merged
-- Performs the merge safely
-- Verifies fixes after merging
-- Provides clear error messages if something goes wrong
+This script is designed to handle the complexities of this repository and will:
+1.  **Verify** that your local custom fixes are intact before starting.
+2.  **Fetch** upstream changes and **warn you** if any of our customized files have been changed upstream.
+3.  **Guide you** through resolving any merge conflicts.
+4.  **Automatically restore and verify** our custom fixes after the merge attempt.
+5.  **Stage** all changes, leaving the final commit action for you.
 
-### Adding New Custom Fixes
+This workflow ensures we integrate upstream updates correctly while guaranteeing our deployment-specific fixes are never lost.
 
-If you need to add a new custom deployment fix:
+### Custom Deployment Fixes That Must Be Preserved
 
-1. Make the fix in the appropriate file
-2. Add the file to `.gitattributes` with `merge=ours`:
-   ```
-   path/to/file merge=ours
-   ```
-3. Update `scripts/verify-custom-fixes.sh` to check for the fix
-4. Document it in `CUSTOM_DEPLOYMENT_FIXES.md`
-5. Commit with a clear message indicating it's a custom deployment fix
+The merge script manages fixes in these files:
+
+1. **`packages/frontend/editor-ui/vite.config.mts`** (Rolldown dedupe configuration)
+2. **`packages/@n8n/codemirror-lang-sql/package.json`** (`@lezer/common` dependency)
+3. **`.gitignore`** (Private file entries)
+
+See `CUSTOM_DEPLOYMENT_FIXES.md` for complete details on each fix.
+
+### If Merge Conflicts Occur
+
+The `merge-upstream.sh` script will pause and instruct you on how to proceed. Your primary goal during conflict resolution is to:
+1.  Integrate the changes from upstream.
+2.  Ensure our custom modifications are still present.
+3.  Let the script continue; it will verify the result for you.
 
 ### What to Do If Fixes Are Overwritten
 
-If custom fixes get overwritten during a merge:
-
-1. **DO NOT** commit the merge yet
-2. Run `./scripts/restore-custom-fixes.sh` to restore missing fixes
-3. Manually verify each fix is correct
-4. Run `./scripts/verify-custom-fixes.sh` to confirm
-5. Commit the restored fixes along with the merge
+The script handles this automatically. After your merge conflict resolution, it runs a restore and verify step. If verification fails, it will halt and provide instructions.
 
 ### Documentation
 
-- See `CUSTOM_DEPLOYMENT_FIXES.md` for detailed documentation of all custom fixes
-- See `CLAUDE.md` for general development guidelines
+- See `CUSTOM_DEPLOYMENT_FIXES.md` for detailed documentation of all custom fixes.
+- See `CLAUDE.md` for general development guidelines.
 
 ## General Development Rules
 
-- Always use `pnpm` for package management
-- Run `./scripts/verify-custom-fixes.sh` after any merge operation
-- Never force-push to master
-- Always verify builds work after merging upstream changes
-
+- Always use `pnpm`

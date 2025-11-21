@@ -1,0 +1,12 @@
+diff --git a/packages/@n8n/codemirror-lang-sql/package.json b/packages/@n8n/codemirror-lang-sql/package.json
+index 794649d8fe..d8c2614263 100644
+--- a/packages/@n8n/codemirror-lang-sql/package.json
++++ b/packages/@n8n/codemirror-lang-sql/package.json
+@@ -41,6 +41,7 @@
+     "@codemirror/autocomplete": "^6.0.0",
+     "@codemirror/language": "^6.0.0",
+     "@codemirror/state": "^6.0.0",
++    "@lezer/common": "^1.0.0",
+     "@lezer/highlight": "^1.0.0",
+     "@lezer/lr": "^1.0.0",
+     "@n8n/codemirror-lang": "workspace:*"

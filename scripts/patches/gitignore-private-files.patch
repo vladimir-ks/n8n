@@ -1,0 +1,15 @@
+diff --git a/.gitignore b/.gitignore
+index 54b0222a7e..63905f1347 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -43,4 +43,8 @@ __pycache__
+ packages/cli/THIRD_PARTY_LICENSES.md
+ .coverage
+ .nyc_output
+-packages/cli/src/commands/export/outputs
+\ No newline at end of file
++packages/cli/src/commands/export/outputs
++
++# Private files
++_backups/
++_private_docs/

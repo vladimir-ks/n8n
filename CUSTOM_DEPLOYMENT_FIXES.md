@@ -83,63 +83,51 @@ _private_docs/
 
 ## Merge Protection
 
-These files are protected during merges using `.gitattributes`:
-
-```
-packages/frontend/editor-ui/vite.config.mts merge=ours
-packages/@n8n/codemirror-lang-sql/package.json merge=ours
-.gitignore merge=ours
-```
-
-This ensures that during merges, our local versions of these files are preserved.
+These files contain critical deployment fixes. The merge process is managed by the `./scripts/merge-upstream.sh` script to ensure they are not overwritten. The script facilitates a manual merge for these files so that upstream changes can be integrated while preserving our custom fixes.
 
 ## Verification
 
-After any merge from upstream, run:
+After any merge from upstream, the `merge-upstream.sh` script automatically runs the verification script:
 
 ```bash
 ./scripts/verify-custom-fixes.sh
 ```
 
-This will check that all custom fixes are still present. If any are missing, you can restore them using:
+This will check that all custom fixes are still present. If any are missing, the merge script will attempt to restore them automatically using:
 
 ```bash
 ./scripts/restore-custom-fixes.sh
 ```
+This script uses patches to re-apply only our custom changes.
 
 ## Adding New Custom Fixes
 
 If you add a new custom deployment fix:
 
-1. Document it in this file
-2. Add the file to `.gitattributes` with `merge=ours`
-3. Update `scripts/verify-custom-fixes.sh` to check for it
-4. Commit with a clear message indicating it's a custom deployment fix
+1. Document it in this file.
+2. Create a patch for your change and add it to `scripts/patches/`.
+   - `git diff <commit-before> <commit-with-fix> -- path/to/file > scripts/patches/my-fix-name.patch`
+3. Update `scripts/restore-custom-fixes.sh` to apply the new patch.
+4. Update `scripts/verify-custom-fixes.sh` to check for the new fix.
+5. Add the file path to the `PROTECTED_FILES` array in `scripts/merge-upstream.sh`.
+6. Commit with a clear message indicating it's a custom deployment fix.
 
-## Merge Workflow
+## Recommended Merge Workflow
 
-When merging upstream changes:
+**Always use the merge helper script.** This is the safest way to merge.
 
-1. **Before merging:**
-   ```bash
-   git fetch upstream
-   git checkout master
-   ```
+```bash
+./scripts/merge-upstream.sh
+```
 
-2. **Merge with strategy:**
-   ```bash
-   git merge upstream/master --no-edit
-   ```
-   The `.gitattributes` will automatically preserve our custom fixes.
+This script will:
+1.  Run pre-flight checks.
+2.  Verify your custom fixes are in place.
+3.  Fetch upstream changes and warn you if protected files have changed.
+4.  Attempt the merge.
+5.  If there are conflicts, it will pause and let you resolve them.
+6.  Automatically restore and verify your custom fixes.
+7.  Stage all changes, ready for you to review and commit.
 
-3. **After merging:**
-   ```bash
-   ./scripts/verify-custom-fixes.sh
-   ```
-   If any fixes are missing, restore them and commit.
-
-4. **Push:**
-   ```bash
-   git push origin master
-   ```
+This process ensures you never miss important upstream updates to your protected files while guaranteeing your custom fixes are always preserved.
 
