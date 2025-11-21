@@ -192,22 +192,7 @@ export default mergeConfig(
 			BASE_PATH: `'${publicPath}'`,
 		},
 		plugins,
-		resolve: {
-			alias,
-			// Fix Rolldown module resolution for @codemirror packages
-			dedupe: [
-				'@codemirror/autocomplete',
-				'@codemirror/commands',
-				'@codemirror/language',
-				'@codemirror/lint',
-				'@codemirror/search',
-				'@codemirror/state',
-				'@codemirror/view',
-				'@lezer/common',
-				'@lezer/highlight',
-				'@lezer/lr',
-			],
-		},
+		resolve: { alias },
 		base: publicPath,
 		envPrefix: ['VUE', 'N8N_ENV_FEAT'],
 		css: {
