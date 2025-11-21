@@ -44,15 +44,37 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Check 4: Detect files that should have been deleted
 echo ""
-if [ $ERRORS -eq 0 ]; then
-    echo -e "${GREEN}✓ All custom deployment fixes are present!${NC}"
-    exit 0
-else
-    echo -e "${RED}✗ Found $ERRORS missing custom fix(es)${NC}"
+echo "Checking for orphaned files that should have been deleted..."
+ORPHANED=0
+
+# Check for invalid-mode.error.ts (should have been deleted in upstream)
+if [ -f "packages/core/src/errors/invalid-mode.error.ts" ]; then
+    echo -e "${YELLOW}⚠️  Found orphaned file: packages/core/src/errors/invalid-mode.error.ts${NC}"
+    echo "  This file was deleted upstream and should be removed"
+    ORPHANED=$((ORPHANED + 1))
+fi
+
+# Add more orphaned file checks as needed
+
+if [ $ORPHANED -gt 0 ]; then
     echo ""
-    echo "To restore fixes, run:"
-    echo "  ./scripts/restore-custom-fixes.sh"
+    echo -e "${YELLOW}Found $ORPHANED orphaned file(s)${NC}"
+    echo "These files may cause build errors and should be removed."
+fi
+
+echo ""
+if [ $ERRORS -eq 0 ] && [ $ORPHANED -eq 0 ]; then
+    echo -e "${GREEN}✓ All custom deployment fixes are present and no orphaned files found!${NC}"
+    exit 0
+elif [ $ERRORS -gt 0 ]; then
+    echo -e "${RED}✗ Found $ERRORS missing custom fix(es)${NC}"
+    echo "To restore fixes, run: ./scripts/restore-custom-fixes.sh"
     exit 1
+else
+    echo -e "${YELLOW}⚠️  Found orphaned files but custom fixes are intact${NC}"
+    echo "Consider cleaning up orphaned files before proceeding."
+    exit 0
 fi
 
