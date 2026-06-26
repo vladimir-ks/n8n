@@ -1,0 +1,3 @@
+# journeys/
+
+journey-template.md

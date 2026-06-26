@@ -48,3 +48,9 @@ packages/cli/src/commands/export/outputs
 # Private files
 _backups/
 _private_docs/
+# Untracked potential-PII doc — needs owner review before any commit
+packages/frontend/editor-ui/public/20251029-P25CON050304978.pdf
+# AIGILE local config (scope: keep docs, ignore runtime/local-only)
+.aigile/aigile.db
+.aigile/ai-logs/
+.aigile/00_DOCS/00_raw-inputs/_private/

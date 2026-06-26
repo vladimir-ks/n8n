@@ -1,0 +1,3 @@
+# sops/
+
+sop-template.md

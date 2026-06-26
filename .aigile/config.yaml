@@ -1,0 +1,18 @@
+# AIGILE Project Configuration
+
+aigile:
+  templateVersion: 0.1.0
+  templateProfile: venture-repo
+  initVersion: 0.4.0
+  initializedAt: 2026-06-26T12:14:02.904Z
+  lastUpdateAt: 2026-06-26T12:14:02.904Z
+  appliedMigrations: []
+  shadow: false
+project:
+  key: N8N
+  name: n8n
+db:
+  mode: local
+  path: .aigile/aigile.db
+profile: venture-repo
+repo_root: .

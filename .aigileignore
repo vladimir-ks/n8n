@@ -1,0 +1,52 @@
+# .aigileignore — n8n-render-deployment
+# Excludes non-doc artifacts from aigile audit scan
+
+# Version control
+.git/
+
+# AIGILE runtime
+.aigile/aigile.db
+.aigile/ai-logs/
+.aigile/00_DOCS/00_raw-inputs/_private/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.turbo/
+*.log
+build.log
+
+# n8n monorepo packages (upstream code — indexed via 55_code-map)
+packages/
+
+# Docker + infra (code/config — indexed via 55_code-map)
+docker/
+volumes/
+n8n-local-prod-docker-deploy/
+
+# Scripts (code)
+scripts/
+patches/
+
+# Private / sensitive
+_private_docs/
+_backups/
+.env
+.env.private
+.env.private.*
+
+# Upstream docs (not owned)
+CHANGELOG.md
+CHANGELOG/
+
+# OS artifacts
+.DS_Store
+*.swp
+
+# CI / tooling config files
+.github/
+.cursor/
