@@ -114,8 +114,8 @@ fi
 echo
 echo -e "${GREEN}Deployment process completed!${NC}"
 echo -e "For more information and advanced configuration, see:"
-echo -e "  - README.md in the ${DEPLOY_DIR} directory"
-echo -e "  - DEPLOY.md in the root directory"
+echo -e "  - .aigile/00_DOCS/00_raw-inputs/35_specs-architecture/n8n-local-prod-docker-deploy-README.md"
+echo -e "  - .aigile/00_DOCS/00_raw-inputs/35_specs-architecture/DEPLOY.md"
 echo
 echo -e "${YELLOW}Next Steps:${NC}"
 echo -e "1. Test local access at: https://${N8N_DOMAIN}"

@@ -201,9 +201,11 @@ The following files contain custom fixes that are managed by the merge script:
 - **`packages/@n8n/codemirror-lang-sql/package.json`** - `@lezer/common` dependency
 - **`.gitignore`** - Private files entries (`_backups/`, `_private_docs/`)
 
-See `CUSTOM_DEPLOYMENT_FIXES.md` for detailed documentation of all custom fixes.
+See `.aigile/00_DOCS/00_raw-inputs/35_specs-architecture/CUSTOM_DEPLOYMENT_FIXES.md`
+for detailed documentation of all custom fixes.
 
 ### Documentation
 
-- See `CUSTOM_DEPLOYMENT_FIXES.md` for detailed documentation of all custom fixes
+- See `.aigile/00_DOCS/00_raw-inputs/35_specs-architecture/CUSTOM_DEPLOYMENT_FIXES.md`
+  for detailed documentation of all custom fixes
 - See `.cursor/rules` for Cursor-specific merge instructions
